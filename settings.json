@@ -1,0 +1,11 @@
+{
+  "screenshot_img_path": "assets/grid_screenshot.png",
+  "screenshot_grayscale_img_path": "assets/grayscale_image.png",
+  "screenshot_binary_img_path": "assets/binary_image.png",
+  "board_binary_img_path": "assets/binary_board_image.png",
+
+  "click_duration": 0.01,
+  "click_cross_enabled": true,
+  "click_crown_enabled": true,
+  "click_enabled": true
+}
