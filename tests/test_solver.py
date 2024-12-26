@@ -4,7 +4,8 @@ from typing import List
 
 from board.cell import Cell
 from board.line import Row, Column
-from solver import Solver  # Assuming the `set_all_cells_crossed` method is part of a `Solver` class
+from solver import Solver, get_common_cells  # Assuming the `set_all_cells_crossed` method is part of a `Solver` class
+
 
 class TestSolver(unittest.TestCase):
     def setUp(self):
@@ -47,7 +48,7 @@ class TestSolver(unittest.TestCase):
 
         # Call the method (no implementation yet, so expect no exceptions)
         try:
-            self.solver.set_all_cells_crossed(cells)
+            self.solver.cross_cells_path(cells)
         except Exception as e:
             self.fail(f"set_all_cells_crossed raised an unexpected exception: {e}")
 
@@ -58,18 +59,101 @@ class TestSolver(unittest.TestCase):
         invalid_cells = [self.cell1, "not a cell", 123]
 
         with self.assertRaises(TypeError):
-            self.solver.set_all_cells_crossed(invalid_cells)
+            self.solver.cross_cells_path(invalid_cells)
 
     def test_filter_empty_cells(self):
         """
         Test that only empty cells are considered.
         """
         cells = [self.cell1, self.cell2, self.cell3, self.cell4]
-        self.solver.set_all_cells_crossed(cells)
+        self.solver.cross_cells_path(cells)
 
         # Verify that crossed cells are ignored (mock functionality for now)
-        filtered_cells = [cell for cell in cells if cell.state == "empty"]
+        filtered_cells = [cell for cell in cells if cell.is_empty()]
         self.assertEqual(len(filtered_cells), 3)
+
+
+class TestGetCommonCells(unittest.TestCase):
+    class Cell:
+        def __init__(self, value):
+            self.value = value
+
+        def __eq__(self, other):
+            return isinstance(other, self.__class__) and self.value == other.value
+
+        def __hash__(self):
+            return hash(self.value)
+
+        def __repr__(self):
+            return f"Cell({self.value})"
+
+    def test_common_cells_found(self):
+        # Test where there are common cells in all sets
+        cell1 = self.Cell(1)
+        cell2 = self.Cell(2)
+        cell3 = self.Cell(3)
+
+        set1 = {cell1, cell2, cell3}
+        set2 = {cell2, cell3}
+        set3 = {cell2, cell3, cell1}
+
+        sets_of_cells = [set1, set2, set3]
+
+        common_cells = get_common_cells(sets_of_cells)
+
+        self.assertEqual(common_cells, [cell2, cell3])
+
+    def test_no_common_cells(self):
+        # Test where there are no common cells between the sets
+        cell1 = self.Cell(1)
+        cell2 = self.Cell(2)
+        cell3 = self.Cell(3)
+
+        set1 = {cell1}
+        set2 = {cell2}
+        set3 = {cell3}
+
+        sets_of_cells = [set1, set2, set3]
+
+        common_cells = get_common_cells(sets_of_cells)
+
+        self.assertEqual(common_cells, [])
+
+    def test_empty_input(self):
+        # Test for empty input (empty list of sets)
+        sets_of_cells = []
+
+        common_cells = get_common_cells(sets_of_cells)
+
+        self.assertEqual(common_cells, [])
+
+    def test_single_set(self):
+        # Test when there is only one set
+        cell1 = self.Cell(1)
+        cell2 = self.Cell(2)
+
+        set1 = {cell1, cell2}
+
+        sets_of_cells = [set1]
+
+        common_cells = get_common_cells(sets_of_cells)
+
+        self.assertEqual(common_cells, [cell1, cell2])
+
+    def test_empty_cells_in_sets(self):
+        # Test where some sets contain empty cells
+        cell1 = self.Cell(1)
+        cell2 = self.Cell(2)
+
+        set1 = {cell1, cell2}
+        set2 = {cell2}
+        set3 = {cell1, cell2}
+
+        sets_of_cells = [set1, set2, set3]
+
+        common_cells = get_common_cells(sets_of_cells)
+
+        self.assertEqual(common_cells, [cell2])
 
 if __name__ == "__main__":
     unittest.main()

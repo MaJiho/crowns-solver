@@ -12,6 +12,29 @@ import threading
 from pynput import keyboard
 
 
+def get_common_cells(sets_of_cells: list[set[Cell]]) -> list[Cell]:
+    """
+    Given a list of sets of cells, return a list of cells that are present in every set.
+
+    Args:
+        sets_of_cells (list of set): A list where each element is a set of cells.
+
+    Returns:
+        list: A list of cells that are present in every set.
+    """
+    if not sets_of_cells:
+        return []  # Return an empty list if there are no sets
+
+    # Start with the first set and intersect with the rest
+    common_cells = sets_of_cells[0]
+
+    # Perform intersection with all subsequent sets
+    for cell_set in sets_of_cells[1:]:
+        common_cells &= cell_set
+
+    return list(common_cells)
+
+
 class Solver:
     def __init__(self, board):
         """
@@ -106,14 +129,16 @@ class Solver:
         """
         self.crowns = self.crowns + 1
         click = get_setting("click_crown_enabled")
-        while cell.state != "crown":
+        while not cell.is_crown():
             self.toggle_cell(cell, click)
 
-    def set_cell_cross(self, cell, click=get_setting("click_cross_enabled")):
+    def set_cell_cross(self, cell, click=None):
         """
         Toggles the cell's state until it is set to 'cross'.
         """
-        while cell.state != "cross":
+        if click is None:
+            click = get_setting("click_cross_enabled")
+        while not cell.is_cross():
             self.toggle_cell(cell, click)
 
     def toggle_cell(self, cell, click=True):
@@ -137,7 +162,11 @@ class Solver:
         end = self.board.get_cell_coordinates(cells[-1])
         input_utils.click_and_drag(start, end)
 
-    def set_all_cells_crossed(self, cells_to_cross: List[Cell]):
+    def cross_cells(self, cells: list[Cell]):
+        for cell in cells:
+            self.set_cell_cross(cell)
+
+    def cross_cells_path(self, cells_to_cross: List[Cell]):
         """
         Calculate the optimal path for clicking all cells.
 
@@ -150,94 +179,59 @@ class Solver:
         if not all(isinstance(cell, Cell) for cell in cells_to_cross):
             raise TypeError("All elements in the 'cells' list must be instances of the 'Cell' class.")
 
+        # Filter any cell that isn't empty
+        cells_to_cross = [cell for cell in cells_to_cross if cell.is_empty()]
+
         # If clicking is not enable, we only change states
-        if not get_setting("click_cross_enabled") or not get_setting("click_enabled"):
+        click_cross_enabled = get_setting("click_cross_enabled")
+        click_enabled = get_setting("click_enabled")
+        if not (click_enabled and click_cross_enabled):
             for cell in cells_to_cross:
                 self.set_cell_cross(cell)
+            return
 
-        # Filter any cell that isn't empty
-        cells_to_cross = [cell for cell in cells_to_cross if cell.state == "empty"]
+        while cells_to_cross:
+            # Organize cells in lines (Rows and Columns)
+            lines = defaultdict(int)  # This will store the counts of each line (Row or Column)
 
-        # Organize cells in lines (Rows and Columns)
-        lines = defaultdict(int)  # This will store the counts of each line (Row or Column)
+            for cell in cells_to_cross:
+                lines[cell.row_ref] += 1  # Count the row
+                lines[cell.column_ref] += 1  # Count the column
 
-        for cell in cells_to_cross:
-            lines[cell.row_ref] += 1  # Count the row
-            lines[cell.column_ref] += 1  # Count the column
+            # Order lines from biggest to smallest
+            lines = sorted(lines.items(), key=lambda item: item[1], reverse=True)
 
-        # Order lines from biggest to smallest
-        lines = sorted(lines.items(), key=lambda item: item[1], reverse=True)
+            # Split lines into segments
+            segments = []
 
-        # Split lines into segments
-        segments = []
+            for line, _ in lines:
+                cells_in_line_to_cross = line.intersect_cells(cells_to_cross)
+                line_segments = line.make_line_segments(cells_in_line_to_cross)
+                segments.extend(line_segments)
 
-        for line, _ in lines:
-            line_cells = line.intersect_cells(cells_to_cross)
-            line_segments = self.make_line_segments(line, line_cells)
-            for line_segment in line_segments:
-                segments.append(line_segment)
-
-        # Click and drag by segments
-        while segments:
             # Order segments
             segments: list[list[Cell]] = sorted(segments, key=len, reverse=True)
 
+            # Cross largest segment
             largest_segment = segments.pop(0)
             if len(largest_segment) > 1:  # Click and drag
                 self.click_and_drag_cells(largest_segment)
             elif len(largest_segment) == 1:  # Click
                 self.set_cell_cross(largest_segment[0])
 
-            # Remove used cells from the other segments
+            # Remove used cells from original list
             for cell in largest_segment:
-                for segment in segments:
-                    if cell in segment:
-                        segment.remove(cell)
-                    if not segment:
-                        segments.remove(segment)
+                cells_to_cross.remove(cell)
 
-    def make_line_segments(self, line: Line, cells: list[Cell]):
-
-        if not line.contains_cells(cells):
-            raise ValueError("The given cells should all be part of the given line.")
-
-        all_segments = []
-        segment = []
-
-        for line_cell in line.cells:
-            # For segments, we consider empty lines that should be crossed as well as non-empty lines,
-            # since they won't be affected
-            if line_cell in cells or line_cell.state != "empty":
-                segment.append(line_cell)
-            else:
-                if len(segment) > 0:
-                    all_segments.append(segment)
-                segment = []
-
-        return all_segments
-
-    def place_crown(self, cell):
+    def crown_cell(self, cell):
         """
-        Places a crown on the given cell by interacting with its row, column, and area references.
+        Places a crown on the given cell.
 
         Args:
             cell (Cell): The cell where the crown should be placed.
         """
-        # Combine the cells from the row, column, and area into a set (to avoid duplicates)
-        cells_to_process = set(
-            cell.row_ref.cells + cell.column_ref.cells + cell.area_ref.cells + self.board.get_surrounding_cells(
-                cell))
-
-        # Remove the given cell from the set
-        cells_to_process.discard(cell)
-
         # Place a crown on the given cell
         self.set_cell_crown(cell)
-
-        # Place a cross on every other cell in the set
-        self.set_all_cells_crossed(list(cells_to_process))
-        # for other_cell in cells_to_process:
-        #     self.set_cell_cross(other_cell)
 
     def get_empty_spaces(self):
         return [cell for area in self.areas.values() for cell in area.get_empty_cells()]
@@ -252,27 +246,42 @@ class Solver:
         Returns:
             bool: True if a crown was placed according to this rule, False otherwise.
         """
+        crown: Cell | None = None
+        crosses: list[Cell] = []
+
         # Check for crowns in areas
         for area in self.areas.values():
-            cell_to_crown = area.check_empty_spot()
-            if cell_to_crown:
-                self.place_crown(cell_to_crown)
-                return True
+            crown = area.check_empty_spot()
+            if crown:
+                break
 
         # Check for crowns in lines (rows and columns)
-        for line in self.rows + self.columns:
-            cell_to_crown = line.check_empty_spot()
-            if cell_to_crown:
-                self.place_crown(cell_to_crown)
-                return True
+        if not crown:
+            for line in self.rows + self.columns:
+                crown = line.check_empty_spot()
+                if crown:
+                    break
 
-        return False
+        if crown:
+            # Gather all cells to be crossed from this crown
+            col: Column = crown.column_ref
+            row: Row = crown.row_ref
+            crosses += list(set(
+                col.get_line_except_cell(crown) +
+                row.get_line_except_cell(crown) +
+                self.board.get_surrounding_cells(crown)
+            ))
+
+        return crown, crosses
 
     def rule_two(self):
         """
         Checks for empty cells of an area that occupy 1 line (row or column).
         If all empty cells of an area are in the same row or column, perform the action (e.g., place a crown).
         """
+        crown: Cell | None = None
+        crosses: list[Cell] = []
+
         for area in self.areas.values():
             # Get all empty cells in the area
             area_empty_cells = area.get_empty_cells()
@@ -300,19 +309,11 @@ class Solver:
             if line:
                 # Get all cells in the row
                 line_cells = line.cells
-                # Remove the empty cells from the row cells
-                remaining_cells = [cell for cell in line_cells if
-                                   cell not in area_empty_cells and cell.state == "empty"]
-                if remaining_cells:
-                    # Apply set_cell_cross to the remaining cells in the row
-                    self.set_all_cells_crossed(remaining_cells)
+                # Keep empty cells that don't belong to the area
+                crosses = [cell for cell in line_cells if
+                           cell not in area_empty_cells and cell.is_empty()]
 
-                    # for cell in remaining_cells:
-                    #   self.set_cell_cross(cell)
-
-                    return True
-
-        return False
+        return crown, crosses
 
     def rule_three(self):
         """
@@ -320,7 +321,8 @@ class Solver:
         If all empty cells in a row or column belong to the same area,
         the remaining empty cells of that area (excluding the row/column cells) get crossed.
         """
-        progress = False
+        crown: Cell | None = None
+        crosses: list[Cell] = []
 
         # Step 1: Check all rows and columns
         for line in self.rows + self.columns:  # Combine rows and columns into one iterable
@@ -339,19 +341,10 @@ class Solver:
                 area_empty_cells = area.get_empty_cells()
 
                 # Step 4: Remove the line's empty cells from the area's empty cells
-                remaining_cells = [cell for cell in area_empty_cells if
-                                   cell not in line_empty_cells and cell.state == "empty"]
+                crosses = [cell for cell in area_empty_cells if
+                           cell not in line_empty_cells]
 
-                # Step 5: Cross the remaining cells
-                if remaining_cells:
-                    progress = True
-                    self.set_all_cells_crossed(remaining_cells)
-                # for cell in remaining_cells:
-                #     if cell.state == "empty":
-                #         self.set_cell_cross(cell)
-                #         progress = True
-
-        return progress
+        return crown, crosses
 
     def rule_four(self):
         """
@@ -359,10 +352,11 @@ class Solver:
         For each area, identifies surrounding cells of all empty spaces,
         and if a cell is common to all surrounding spaces, it gets crossed.
         """
+        crown: Cell | None = None
+        crosses: list[Cell] = []
+
         # Step 1: Sort areas by the number of empty spaces (ascending)
         areas_by_empty_cells = sorted(self.areas.values(), key=lambda a: len(a.get_empty_cells()))
-
-        progress = False  # To track if any changes were made
 
         # Step 2: Iterate through each area
         for area in areas_by_empty_cells:
@@ -373,32 +367,31 @@ class Solver:
                 continue
 
             # Step 3: Collect surrounding cells AND lines for all empty cells
-            surrounding_cells_list = [
-                set(self.board.get_surrounding_cells(cell)) | set(cell.row_ref.get_line_except_cell(cell)) |
-                set(cell.column_ref.get_line_except_cell(cell))
-                for cell in empty_cells
-            ]
+            surrounding_cells_list = []
+            for cell in empty_cells:
+                surrounding_cells = set(self.board.get_surrounding_cells(cell))
+                row_cells = set(cell.row_ref.get_line_except_cell(cell))
+                column_cells = set(cell.column_ref.get_line_except_cell(cell))
+                surrounding_cells_list.append(
+                    surrounding_cells | row_cells | column_cells)
 
             # Step 4: Intersect all surrounding cells
-            common_cells = set.intersection(*surrounding_cells_list)
+            common_cells = get_common_cells(surrounding_cells_list)
 
-            # Step 5: Cross the common cells that are empty
-            common_cells = [cell for cell in common_cells if cell.state == "empty"]
-            if common_cells:
-                progress = True
-                self.set_all_cells_crossed(common_cells)
-            # for cell in common_cells:
-            #     if cell.state == "empty":
-            #         self.set_cell_cross(cell)
-            #         progress = True
+            # Step 5: Keep only the empty cells
+            common_cells = [cell for cell in common_cells if cell.is_empty()]
 
-        return progress
+            # Step 6: Cross the common cells that are empty
+            crosses.extend(common_cells)
+
+        return crown, crosses
 
     def rule_five(self):
         """
         Rule 5: Pairs areas by rows or columns
         """
-        progress = False  # To track if any changes were made
+        crown: Cell | None = None
+        crosses: list[Cell] = []
 
         # Initialize max values for rows and columns
         max_empty_rows = 2
@@ -426,7 +419,6 @@ class Solver:
             area_columns_dict[area_id] = empty_columns
 
         def process_line(area_dict, min_value, max_value):
-            nonlocal progress
             # Sort the dictionary by the length of the lists (ascending order)
             sorted_dict = dict(sorted(area_dict.items(), key=lambda item: len(item[1])))
 
@@ -461,22 +453,14 @@ class Solver:
                         area_cells = set(c_area.get_empty_cells())  # Get the empty cells for the area
                         final_col_cells.difference_update(area_cells)  # Remove area cells from the column cells
 
-                    final_col_cells = [cell for cell in final_col_cells if cell.state == "empty"]
-                    if final_col_cells:
-                        progress = True
-                        self.set_all_cells_crossed(final_col_cells)
-
-                    # for cell in final_col_cells:
-                    #     if cell.state == "empty":
-                    #         self.set_cell_cross(cell)
-                    #         progress = True
+                    crosses.extend(final_col_cells)
 
         # Step 4: Process Rows
         process_line(area_rows_dict, min_empty_rows, max_empty_rows)
         # Step 5: Process Columns
         process_line(area_columns_dict, min_empty_columns, max_empty_columns)
 
-        return progress
+        return crown, crosses
 
     def rule_six(self):
         """
@@ -496,12 +480,14 @@ class Solver:
          Returns:
              bool: Indicates whether any progress was made (i.e., cells were crossed out).
          """
-        progress = False
+        crown: Cell | None = None
+        crosses: list[Cell] = []
+
         min_value = 2
         max_value = len(self.areas)
 
         def process_line(line_areas, get_empty_area_lines):
-            nonlocal min_value, max_value, progress
+            nonlocal min_value, max_value
             for i in range(min_value, max_value + 1):
                 # Find i lines with the same areas
                 matching_lines = find_matching_entries(line_areas, i)
@@ -524,17 +510,7 @@ class Solver:
                         # Intersect the cell groups
                         crossed_cells = set(crossed_line_cells) & set(area_cells)
 
-                        crossed_cells = [cell for cell in crossed_cells if cell.state == "empty"]
-                        if crossed_cells:
-                            progress = True
-                            self.set_all_cells_crossed(crossed_cells)
-
-                        # for cell in crossed_cells:
-                        #     if cell.state == "empty":
-                        #         self.set_cell_cross(cell)
-                        #         progress = True
-
-                        print()
+                        crosses.extend(crossed_cells)
 
         rows_areas = {row: row.get_empty_areas() for row in self.rows}
         columns_areas = {column: column.get_empty_areas() for column in self.columns}
@@ -542,7 +518,7 @@ class Solver:
         process_line(rows_areas, lambda area: area.get_rows_of_empty_cells())
         process_line(columns_areas, lambda area: area.get_columns_of_empty_cells())
 
-        return progress
+        return crown, crosses
 
     def guess(self):
         """
@@ -588,7 +564,7 @@ class Solver:
 
         # Step 6: Pick a cell in the smallest area
         target_cell = next(iter(filtered_area_empty_cells.values()))[0]
-        self.place_crown(target_cell)
+        self.crown_cell(target_cell)
 
         # Step 7: Attempt to solve with the guess
         self.solve()
@@ -605,43 +581,55 @@ class Solver:
 
         return crown_found, target_cell
 
+    def apply_rules(self, rules):
+        """
+        Applies the list of rules sequentially.
+        Returns:
+            bool: True if progress was made, False otherwise.
+        """
+        for index, rule in enumerate(rules, start=1):
+            crown, crosses = rule()
+            if crown:
+                self.crown_cell(crown)
+            if crosses:
+                self.cross_cells(crosses)
+            if crown or crosses:
+                print(f"Rule {index} ({rule.__name__}) found, restarting rules.")
+                return True  # Progress was made
+        return False  # No progress
+
+    def apply_guess(self):
+        """
+        Applies a guess when no progress is made.
+        """
+        crown_found, target_cell = self.guess()
+        if crown_found:
+            self.crown_cell(target_cell)
+            print("Crown found!")
+        else:
+            self.set_cell_cross(target_cell)
+            print("Crossed")
+
     def solve(self):
         """
         Solves the game board.
         """
-        # self.cross_line()
         self.start_listener()  # Start the listener in a separate thread
 
-        # List of rules to apply
-        rules = [self.rule_one, self.rule_two, self.rule_three, self.rule_four,
-                 self.rule_five, self.rule_six]
+        rules = [self.rule_one, self.rule_two, self.rule_three, self.rule_four, self.rule_five, self.rule_six]
 
-        while not self.stop_flag:  # Check for stop flag
-            progress = False
-            for index, rule in enumerate(rules, start=1):
-                progress = rule()
-                if progress:
-                    print(f"Rule {index} ({rule.__name__}) found, restarting rules.")
-                    break  # If progress is made, restart from the first rule
+        while not self.stop_flag:
+            # Apply rules and check progress
+            progress = self.apply_rules(rules)
 
-            if progress:
-                continue  # Go back to the start of the rules
-            elif len(self.get_empty_spaces()) > 0:  # There are still empty spaces
-                crown_found, target_cell = self.guess()  # Try to guess an impossible space
-                if crown_found:
-                    self.place_crown(target_cell)
-                    print("Crown found!")
-                else:
-                    self.set_cell_cross(target_cell)
-                    print("Crossed")
-                progress = True
+            # Stop if board is complete
+            if len(self.get_empty_spaces()) == 0:
+                print("Board complete!")
+                break
 
-            # It should go in here when board has no more empty spaces
+            # Make a guess if no progress was made
             if not progress:
-                print("No progress made, stopping.")
-                break  # If no crowns are placed in a full cycle, stop
-
-        # Further steps to be added later...
+                self.apply_guess()
 
     def cross_line(self):
         rows, cols = self.board.get_dimensions()

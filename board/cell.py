@@ -55,6 +55,33 @@ class Cell:
         y_center = top_left[1] + size // 2
         return cls(x_center, y_center, size)
 
+    def is_empty(self):
+        """
+        Checks if the cell is in an empty state.
+
+        Returns:
+            bool: True if the cell state is "empty", False otherwise.
+        """
+        return self.state == "empty"
+
+    def is_cross(self):
+        """
+        Checks if the cell is in a cross state.
+
+        Returns:
+            bool: True if the cell state is "cross", False otherwise.
+        """
+        return self.state == "cross"
+
+    def is_crown(self):
+        """
+        Checks if the cell is in a crown state.
+
+        Returns:
+            bool: True if the cell state is "crown", False otherwise.
+        """
+        return self.state == "crown"
+
     def set_color(self, color):
         """
         Sets the color of the cell.
@@ -85,11 +112,11 @@ class Cell:
         """
         Toggles the state of the cell in the order: empty -> cross -> crown -> empty.
         """
-        if self.state == "empty":
+        if self.is_empty():
             self.set_state("cross")
-        elif self.state == "cross":
+        elif self.is_cross():
             self.set_state("crown")
-        elif self.state == "crown":
+        elif self.is_crown():
             self.set_state("empty")
 
     def get_coordinates(self):
@@ -114,4 +141,4 @@ class Cell:
         return top_left, bottom_right
 
     def __repr__(self):
-        return f"Cell(center=({self.x}, {self.y}), size={self.size}, color={self.color})"
+        return f"Cell({self.column_ref.get_position(self)},{self.row_ref.get_position(self)})"
