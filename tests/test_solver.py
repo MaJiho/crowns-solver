@@ -68,7 +68,7 @@ class TestSolver(unittest.TestCase):
         self.solver.set_all_cells_crossed(cells)
 
         # Verify that crossed cells are ignored (mock functionality for now)
-        filtered_cells = [cell for cell in cells if cell.state == "empty"]
+        filtered_cells = [cell for cell in cells if cell.is_empty()]
         self.assertEqual(len(filtered_cells), 3)
 
 if __name__ == "__main__":

@@ -42,7 +42,7 @@ class Line:
         Returns:
             List[Cell]: A list of cells that are empty.
         """
-        return [cell for cell in self.cells if cell.state == "empty"]
+        return [cell for cell in self.cells if cell.is_empty()]
 
     def get_empty_areas(self):
         """
@@ -102,8 +102,8 @@ class Line:
             Cell: The cell to be crowned, or None if conditions are not met.
         """
         # Check if no cell has a crown and only one is empty
-        crown_cells = [cell for cell in self.cells if cell.state == "crown"]
-        empty_cells = [cell for cell in self.cells if cell.state == "empty"]
+        crown_cells = [cell for cell in self.cells if cell.is_crown()]
+        empty_cells = [cell for cell in self.cells if cell.is_empty()]
 
         if not crown_cells and len(empty_cells) == 1:
             return empty_cells[0]  # Return the single empty cell

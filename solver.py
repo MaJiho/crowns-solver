@@ -106,14 +106,14 @@ class Solver:
         """
         self.crowns = self.crowns + 1
         click = get_setting("click_crown_enabled")
-        while cell.state != "crown":
+        while not cell.is_crown():
             self.toggle_cell(cell, click)
 
     def set_cell_cross(self, cell, click=get_setting("click_cross_enabled")):
         """
         Toggles the cell's state until it is set to 'cross'.
         """
-        while cell.state != "cross":
+        while not cell.is_cross():
             self.toggle_cell(cell, click)
 
     def toggle_cell(self, cell, click=True):
@@ -156,7 +156,7 @@ class Solver:
                 self.set_cell_cross(cell)
 
         # Filter any cell that isn't empty
-        cells_to_cross = [cell for cell in cells_to_cross if cell.state == "empty"]
+        cells_to_cross = [cell for cell in cells_to_cross if cell.is_empty()]
 
         # Organize cells in lines (Rows and Columns)
         lines = defaultdict(int)  # This will store the counts of each line (Row or Column)
@@ -207,7 +207,7 @@ class Solver:
         for line_cell in line.cells:
             # For segments, we consider empty lines that should be crossed as well as non-empty lines,
             # since they won't be affected
-            if line_cell in cells or line_cell.state != "empty":
+            if line_cell in cells or not line_cell.is_empty():
                 segment.append(line_cell)
             else:
                 if len(segment) > 0:
@@ -302,7 +302,7 @@ class Solver:
                 line_cells = line.cells
                 # Remove the empty cells from the row cells
                 remaining_cells = [cell for cell in line_cells if
-                                   cell not in area_empty_cells and cell.state == "empty"]
+                                   cell not in area_empty_cells and cell.is_empty()]
                 if remaining_cells:
                     # Apply set_cell_cross to the remaining cells in the row
                     self.set_all_cells_crossed(remaining_cells)
@@ -340,7 +340,7 @@ class Solver:
 
                 # Step 4: Remove the line's empty cells from the area's empty cells
                 remaining_cells = [cell for cell in area_empty_cells if
-                                   cell not in line_empty_cells and cell.state == "empty"]
+                                   cell not in line_empty_cells and cell.is_empty()]
 
                 # Step 5: Cross the remaining cells
                 if remaining_cells:
@@ -383,7 +383,7 @@ class Solver:
             common_cells = set.intersection(*surrounding_cells_list)
 
             # Step 5: Cross the common cells that are empty
-            common_cells = [cell for cell in common_cells if cell.state == "empty"]
+            common_cells = [cell for cell in common_cells if cell.is_empty()]
             if common_cells:
                 progress = True
                 self.set_all_cells_crossed(common_cells)
@@ -461,7 +461,7 @@ class Solver:
                         area_cells = set(c_area.get_empty_cells())  # Get the empty cells for the area
                         final_col_cells.difference_update(area_cells)  # Remove area cells from the column cells
 
-                    final_col_cells = [cell for cell in final_col_cells if cell.state == "empty"]
+                    final_col_cells = [cell for cell in final_col_cells if cell.is_empty()]
                     if final_col_cells:
                         progress = True
                         self.set_all_cells_crossed(final_col_cells)
@@ -524,7 +524,7 @@ class Solver:
                         # Intersect the cell groups
                         crossed_cells = set(crossed_line_cells) & set(area_cells)
 
-                        crossed_cells = [cell for cell in crossed_cells if cell.state == "empty"]
+                        crossed_cells = [cell for cell in crossed_cells if cell.is_empty()]
                         if crossed_cells:
                             progress = True
                             self.set_all_cells_crossed(crossed_cells)

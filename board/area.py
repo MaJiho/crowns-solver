@@ -29,7 +29,7 @@ class Area:
         Listener method called when a cell in this area changes state.
         """
         # Example logic: check if only one empty cell remains
-        empty_cells = [cell for cell in self.cells if cell.state == "empty"]
+        empty_cells = [cell for cell in self.cells if cell.is_empty()]
         if len(empty_cells) == 1:
             empty_cells[0].set_state("crown")  # Set the last empty cell as the crown
 
@@ -41,7 +41,7 @@ class Area:
             Cell: The cell to be crowned, or None if conditions are not met.
         """
         # Check if no cell has a crown and only one is empty
-        crown_cells = [cell for cell in self.cells if cell.state == "crown"]
+        crown_cells = [cell for cell in self.cells if cell.is_crown()]
         empty_cells = self.get_empty_cells()
 
         if not crown_cells and len(empty_cells) == 1:
@@ -56,7 +56,7 @@ class Area:
         Returns:
             List[Cell]: A list of cells that are empty.
         """
-        return [cell for cell in self.cells if cell.state == "empty"]
+        return [cell for cell in self.cells if cell.is_empty()]
 
     def get_columns_of_empty_cells(self):
         """
