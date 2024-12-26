@@ -6,6 +6,6 @@
 
   "click_duration": 0.01,
   "click_cross_enabled": true,
-  "click_crown_enabled": true,
+  "click_crown_enabled": false,
   "click_enabled": true
 }

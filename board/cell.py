@@ -141,4 +141,4 @@ class Cell:
         return top_left, bottom_right
 
     def __repr__(self):
-        return f"Cell(center=({self.x}, {self.y}), size={self.size}, color={self.color})"
+        return f"Cell({self.column_ref.get_position(self)},{self.row_ref.get_position(self)})"
