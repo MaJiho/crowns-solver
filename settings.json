@@ -10,7 +10,8 @@
   "click_crown_duration": 0.3,
   "click_cross_enabled": true,
   "click_crown_enabled": true,
-  "click_enabled": true
+  "click_enabled": true,
+  "quick_clicker": true
 }
 
 
