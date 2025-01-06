@@ -2,8 +2,11 @@ import unittest
 from collections import defaultdict
 from typing import List
 
+from board.board import Board
 from board.cell import Cell
 from board.line import Row, Column
+from debug_utils import load_board_state
+from settings import load_settings
 from solver import Solver, get_common_cells  # Assuming the `set_all_cells_crossed` method is part of a `Solver` class
 
 
@@ -154,6 +157,26 @@ class TestGetCommonCells(unittest.TestCase):
         common_cells = get_common_cells(sets_of_cells)
 
         self.assertEqual(common_cells, [cell2])
+
+
+class TestSolverRules(unittest.TestCase):
+    def setUp(self):
+        """
+        Set up the test environment by loading the board state.
+        This method is executed before each test.
+        """
+        load_settings("../settings.json")
+        self.board: Board = load_board_state()
+        if not self.board:
+            self.fail("Failed to load board state for testing.")
+
+    def test_rule_five(self):
+        """
+        Test for rule_five to ensure it behaves as expected.
+        """
+        solver = Solver(self.board)
+        solver.rule_five()
+
 
 if __name__ == "__main__":
     unittest.main()

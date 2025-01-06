@@ -1,3 +1,4 @@
+import math
 import pickle
 import time
 from typing import Dict, List, Any
@@ -174,7 +175,7 @@ class Solver:
         cell.toggle_state()
 
         # Click the screen
-        if click and self.click_enabled:
+        if click and self.click_enabled and not self.stop_flag:
             if duration is None:
                 duration = get_setting("click_cross_duration")
             input_utils.click_at((x, y), duration)
@@ -262,6 +263,17 @@ class Solver:
     def get_empty_spaces(self):
         return [cell for area in self.areas.values() for cell in area.get_empty_cells()]
 
+    def get_crosses_from_crown(self, crown):
+        col: Column = crown.column_ref
+        row: Row = crown.row_ref
+        area: Area = crown.area_ref
+        return list(set(
+            col.get_line_except_cell(crown) +
+            row.get_line_except_cell(crown) +
+            area.get_area_except_cell(crown) +
+            self.board.get_surrounding_cells(crown)
+        ))
+
     def rule_one(self):
         """
         Checks if an area or a line has a single empty spot, which should be considered a crown.
@@ -290,16 +302,7 @@ class Solver:
 
         if crown:
             # Gather all cells to be crossed from this crown
-            col: Column = crown.column_ref
-            row: Row = crown.row_ref
-            area: Area = crown.area_ref
-            crosses += list(set(
-                col.get_line_except_cell(crown) +
-                row.get_line_except_cell(crown) +
-                area.get_area_except_cell(crown) +
-                self.board.get_surrounding_cells(crown)
-
-            ))
+            crosses += self.get_crosses_from_crown(crown)
 
         return crown, crosses
 
@@ -438,47 +441,30 @@ class Solver:
         crosses: list[Cell] = []
 
         min_value = 2
-        max_value = len(self.areas)
+        max_value = math.ceil(len(self.areas) / 2)
 
-        def process_line(line_areas, get_empty_area_lines):
+        def process_line(areas_dictionary, get_lines_of_empty_cells):
             nonlocal min_value, max_value
             for i in range(min_value, max_value + 1):
-                # Find i lines with the same areas
-                matching_lines = find_matching_entries(line_areas, i)
-                if matching_lines:
-                    # Get the areas from the match
-                    matching_areas = list({area for line in list(matching_lines.values()) for area in line})
-                    # Guarantee they have i areas
-                    if len(matching_areas) == i:
-                        # Analyze each areas lines to cross lines not in line_areas
-                        total_lines = {line for area in next(iter(matching_lines.values())) for line in
-                                       get_empty_area_lines(area)}
-
-                        # Remove the matching lines from the total lines
-                        crossed_lines = [line for line in total_lines if line not in list(matching_lines.keys())]
-                        crossed_line_cells = [cell for line in crossed_lines for cell in line.get_empty_cells()]
-
-                        # Get cells from the matching areas
-                        area_cells = [cell for area in matching_areas for cell in area.get_empty_cells()]
-
-                        # Intersect the cell groups
-                        crossed_cells = set(crossed_line_cells) & set(area_cells)
-
-                        crosses.extend(crossed_cells)
-
-        # Apply rule for rows and columns
-        rows_areas = {row: row.get_empty_areas() for row in self.rows}
-        columns_areas = {column: column.get_empty_areas() for column in self.columns}
-
-        process_line(rows_areas, lambda area: area.get_rows_of_empty_cells())
-        process_line(columns_areas, lambda area: area.get_columns_of_empty_cells())
+                matching_areas = find_matching_entries(areas_dictionary, i)
+                if matching_areas:
+                    matching_lines: set[Line] = set(
+                        line for area in matching_areas for line in get_lines_of_empty_cells(area))
+                    all_cells = set(
+                        cell for matching_line in matching_lines for cell in matching_line.get_empty_cells())
+                    cells_to_cross = [cell for cell in all_cells if cell.area_ref not in matching_areas]
+                    crosses.extend(cells_to_cross)
+                    if cells_to_cross:
+                        break
 
         # Apply rule for areas
-        areas_rows = {area: area.get_rows_of_empty_cells() for area in list(self.areas.values())}
-        areas_columns = {area: area.get_columns_of_empty_cells() for area in list(self.areas.values())}
+        areas_rows = {area: rows for area, rows in
+                      ((area, area.get_rows_of_empty_cells()) for area in self.areas.values()) if rows}
+        areas_columns = {area: columns for area, columns in
+                         ((area, area.get_columns_of_empty_cells()) for area in self.areas.values()) if columns}
 
-        process_line(areas_rows, lambda row: row.get_empty_areas())
-        process_line(areas_columns, lambda col: col.get_empty_areas())
+        process_line(areas_rows, lambda area: area.get_rows_of_empty_cells())
+        process_line(areas_columns, lambda area: area.get_columns_of_empty_cells())
 
         return crown, crosses
 
@@ -612,12 +598,13 @@ class Solver:
         """
         for index, rule in enumerate(rules, start=1):
             crown, crosses = rule()
+            if crown or crosses:
+                print(f"Rule {index} ({rule.__name__}) found, restarting rules.")
             if crown:
                 self.crown_cell(crown)
             if crosses:
                 self.cross_cells(crosses)
             if crown or crosses:
-                print(f"Rule {index} ({rule.__name__}) found, restarting rules.")
                 if not self.guess_flag:
                     time.sleep(self.sleep_time)  # Pause between rules
                 return True  # Progress was made
@@ -634,6 +621,8 @@ class Solver:
         if crown_found:
             self.crown_cell(target_cell)
             print("Crown found!")
+            crosses = self.get_crosses_from_crown(target_cell)
+            self.cross_cells(crosses)
         else:
             self.set_cell_cross(target_cell)
             print("Crossed")
@@ -655,6 +644,7 @@ class Solver:
             # Stop if board is complete
             if len(self.get_empty_spaces()) == 0:
                 print("Board complete!")
+                save_board_state(self.board)
                 break
 
             # Make a guess if no progress was made

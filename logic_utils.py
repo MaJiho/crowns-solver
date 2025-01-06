@@ -1,35 +1,36 @@
-def find_matching_entries(dict_of_objects, X):
+from itertools import combinations
+
+from typing import Dict, List, TypeVar, Any
+
+# Create a type variable that will represent the key type in the dictionary
+K = TypeVar('K')
+
+
+def find_matching_entries(dictionary: Dict[K, List[Any]], threshold: int) -> List[K]:
     """
-    Finds the first X dictionary entries that have identical values, only considering entries with lists of length X.
+    Function to find X entries in the dictionary D where the combined values form a set of size X.
 
     Args:
-        dict_of_objects (dict): A dictionary where the values are lists of objects.
-        X (int): The number of identical entries to find and the required length of the lists.
+        dictionary (dict): A dictionary where keys are objects and values are lists of objects.
+        threshold (int): The number of entries to select and the target number of distinct elements in the combined set.
 
     Returns:
-        dict: A dictionary with the first X entries that have identical values and lists of length X,
-              or an empty dictionary if no match is found.
+        list: A list of X entries from D whose combined values form a set with exactly X elements.
+        None: If no such combination exists.
     """
-    # Use a dictionary to group keys based on their values' "identity"
-    seen = {}
+    # Filter out dictionary entries where the list length is greater than X
+    filtered_dict = {k: v for k, v in dictionary.items() if len(v) <= threshold}
 
-    for key, value in dict_of_objects.items():
-        # Skip entries where the list length is not X
-        if len(value) != X:
-            continue
+    # Generate all combinations of X entries from the filtered dictionary
+    for selected_entries in combinations(filtered_dict.items(), threshold):
+        # Combine all lists of the selected entries
+        combined_values = set()
+        for _, value_list in selected_entries:
+            combined_values.update(value_list)
 
-        # Convert the list of objects to a tuple of their IDs (or hashable equivalents)
-        value_key = tuple(id(obj) for obj in value)
+        # If the size of the combined set is equal to X, return the combination
+        if len(combined_values) == threshold:
+            return [entry[0] for entry in selected_entries]
 
-        # Add to the dictionary or group the keys
-        if value_key not in seen:
-            seen[value_key] = [key]
-        else:
-            seen[value_key].append(key)
-
-        # If we have X keys with identical values, return them as a dictionary
-        if len(seen[value_key]) == X:
-            return {k: dict_of_objects[k] for k in seen[value_key]}
-
-    # If no match is found, return an empty dictionary
-    return {}
+    # If no valid combination is found
+    return None
