@@ -280,10 +280,13 @@ def color_cells(original_image, cells, x, y):
         cell_y = cell.y + y
 
         # Get the color of the pixel at (cell_x, cell_y) from the original image
-        color = original_image[cell_y, cell_x]  # Color is in BGR format
+        bgr_color = original_image[cell_y, cell_x]  # Color is in BGR format
+
+        # Convert BGR to RGB
+        rgb_color = (bgr_color[2], bgr_color[1], bgr_color[0])
 
         # Set the color of the cell
-        cell.set_color(color)
+        cell.set_color(rgb_color)
 
     return cells
 

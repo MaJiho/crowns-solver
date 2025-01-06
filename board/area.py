@@ -82,3 +82,17 @@ class Area:
 
     def __repr__(self):
         return f"Area(color={self.color}, cells={len(self.cells)} cells)"
+
+    def get_area_except_cell(self, cell):
+        """
+        Returns all cells in the area except the specified cell.
+
+        Args:
+            cell (Cell): The cell to exclude.
+
+        Returns:
+            List[Cell]: A list of cells in the area except for the given cell.
+        """
+        cells_except_given = self.cells.copy()  # Make a shallow copy of the cells
+        cells_except_given.remove(cell)  # Remove the specified cell
+        return cells_except_given

@@ -191,3 +191,33 @@ class Board:
             tuple: (rows, cols)
         """
         return len(self.cells), len(self.cells[0])
+
+    def represent_cell_matrix(self):
+        """
+        Creates a matrix of strings based on the cell matrix.
+
+        Each cell is represented as:
+        - 'O' if the cell is empty,
+        - 'X' if the cell is a cross,
+        - 'H' if the cell is a crown.
+
+        Args:
+            cells (list of list of Cell): A 2D matrix of Cell objects.
+
+        Returns:
+            list of list of str: A 2D matrix of strings representing the state of the cells.
+        """
+        string_matrix = []
+        for row in self.cells:
+            string_row = []
+            for cell in row:
+                if cell.is_empty():
+                    string_row.append('O')
+                elif cell.is_cross():
+                    string_row.append('X')
+                elif cell.is_crown():
+                    string_row.append('H')
+                else:
+                    string_row.append('?')  # Optional: handle unexpected cases
+            string_matrix.append(string_row)
+        return string_matrix

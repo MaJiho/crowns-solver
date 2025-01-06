@@ -1,3 +1,5 @@
+import pickle
+import time
 from typing import Dict, List, Any
 
 import input_utils
@@ -35,6 +37,24 @@ def get_common_cells(sets_of_cells: list[set[Cell]]) -> list[Cell]:
     return list(common_cells)
 
 
+def save_board_state(board, filename=None):
+    """
+    Saves the current state of the board to a file.
+
+    Args:
+        board: The board object to save.
+        filename (str): The name of the file to save the board to.
+    """
+    if filename is None:
+        filename = get_setting("board_obj_path")
+    try:
+        with open(filename, "wb") as file:
+            pickle.dump(board, file)
+        print(f"Board state saved to {filename}")
+    except Exception as e:
+        print(f"Error saving board state: {e}")
+
+
 class Solver:
     def __init__(self, board):
         """
@@ -51,10 +71,12 @@ class Solver:
         self.rows: List[Row] = []  # List to store Row objects
         self.columns: List[Column] = []  # List to store Column objects
         self.crowns = 0
+        self.guess_flag = False
 
         self.click_cross_enabled = get_setting("click_cross_enabled")
         self.click_crown_enabled = get_setting("click_crown_enabled")
         self.click_enabled = get_setting("click_enabled")
+        self.sleep_time = get_setting("sleep_time")
 
         self.create_areas()
         self.create_lines()
@@ -74,8 +96,9 @@ class Solver:
             except Exception as e:
                 print(f"Error: {e}")
 
-        self.listener = keyboard.Listener(on_press=on_press)
-        self.listener.start()
+        if not self.listener:
+            self.listener = keyboard.Listener(on_press=on_press)
+            self.listener.start()
 
     def create_areas(self):
         """
@@ -130,7 +153,8 @@ class Solver:
         self.crowns = self.crowns + 1
         click = get_setting("click_crown_enabled")
         while not cell.is_crown():
-            self.toggle_cell(cell, click)
+            duration = get_setting("click_crown_duration")
+            self.toggle_cell(cell, click, duration)
 
     def set_cell_cross(self, cell, click=None):
         """
@@ -139,9 +163,10 @@ class Solver:
         if click is None:
             click = get_setting("click_cross_enabled")
         while not cell.is_cross():
-            self.toggle_cell(cell, click)
+            duration = get_setting("click_cross_duration")
+            self.toggle_cell(cell, click, duration)
 
-    def toggle_cell(self, cell, click=True):
+    def toggle_cell(self, cell, click=True, duration=None):
         """
             Toggles the cell's state and clicks it on screen if click is true.
         """
@@ -150,7 +175,8 @@ class Solver:
 
         # Click the screen
         if click and self.click_enabled:
-            duration = get_setting("click_duration")
+            if duration is None:
+                duration = get_setting("click_cross_duration")
             input_utils.click_at((x, y), duration)
 
     def click_and_drag_cells(self, cells: list[Cell]):
@@ -266,10 +292,13 @@ class Solver:
             # Gather all cells to be crossed from this crown
             col: Column = crown.column_ref
             row: Row = crown.row_ref
+            area: Area = crown.area_ref
             crosses += list(set(
                 col.get_line_except_cell(crown) +
                 row.get_line_except_cell(crown) +
+                area.get_area_except_cell(crown) +
                 self.board.get_surrounding_cells(crown)
+
             ))
 
         return crown, crosses
@@ -343,6 +372,7 @@ class Solver:
                 # Step 4: Remove the line's empty cells from the area's empty cells
                 crosses = [cell for cell in area_empty_cells if
                            cell not in line_empty_cells]
+                break
 
         return crown, crosses
 
@@ -388,77 +418,67 @@ class Solver:
 
     def rule_five(self):
         """
-        Rule 5: Pairs areas by rows or columns
-        """
+         Implements Rule Six for solving the puzzle. This rule identifies cases where multiple lines (rows or columns)
+         share only a few possible areas, ensuring that the crowns within those areas must occupy those lines.
+         Consequently, any other lines that overlap with those areas are crossed out to eliminate ambiguity.
+
+         Steps:
+         1. For each possible number of matching areas (from `min_value` to `max_value`):
+             a. Find groups of lines with exactly `i` matching areas.
+             b. Verify that the matched areas are exactly `i` in number.
+             c. Determine all lines connected to those areas.
+             d. Exclude the matching lines from the total connected lines.
+             e. Cross out cells in the excluded lines that overlap with the matched areas.
+         2. Repeat the above for both rows and columns.
+
+         Returns:
+             bool: Indicates whether any progress was made (i.e., cells were crossed out).
+         """
         crown: Cell | None = None
         crosses: list[Cell] = []
 
-        # Initialize max values for rows and columns
-        max_empty_rows = 2
-        max_empty_columns = 2
+        min_value = 2
+        max_value = len(self.areas)
 
-        # Initialize min values for rows and columns
-        min_empty_rows = 2
-        min_empty_columns = 2
-
-        # Step 1: Iterate through all areas
-        area_rows_dict = {}  # Dictionary to store rows for each area
-        area_columns_dict = {}  # Dictionary to store rows for each area
-
-        for area_id, area in self.areas.items():
-            # Get the empty columns and rows for this area
-            empty_columns = area.get_columns_of_empty_cells()
-            empty_rows = area.get_rows_of_empty_cells()
-
-            # Step 2: Update max values
-            max_empty_rows = max(max_empty_rows, len(empty_rows))
-            max_empty_columns = max(max_empty_columns, len(empty_columns))
-
-            # Step 3: Store the rows and columns in the dictionaries
-            area_rows_dict[area_id] = empty_rows
-            area_columns_dict[area_id] = empty_columns
-
-        def process_line(area_dict, min_value, max_value):
-            # Sort the dictionary by the length of the lists (ascending order)
-            sorted_dict = dict(sorted(area_dict.items(), key=lambda item: len(item[1])))
-
-            # Iterate from min_value to max_value (inclusive)
+        def process_line(line_areas, get_empty_area_lines):
+            nonlocal min_value, max_value
             for i in range(min_value, max_value + 1):
-                filtered_dict = {a: rows for a, rows in sorted_dict.items() if len(rows) == i}
+                # Find i lines with the same areas
+                matching_lines = find_matching_entries(line_areas, i)
+                if matching_lines:
+                    # Get the areas from the match
+                    matching_areas = list({area for line in list(matching_lines.values()) for area in line})
+                    # Guarantee they have i areas
+                    if len(matching_areas) == i:
+                        # Analyze each areas lines to cross lines not in line_areas
+                        total_lines = {line for area in next(iter(matching_lines.values())) for line in
+                                       get_empty_area_lines(area)}
 
-                # Dictionary to group areas by their rows (values)
-                grouped_rows = defaultdict(list)
+                        # Remove the matching lines from the total lines
+                        crossed_lines = [line for line in total_lines if line not in list(matching_lines.keys())]
+                        crossed_line_cells = [cell for line in crossed_lines for cell in line.get_empty_cells()]
 
-                # Group areas by their row values
-                for c_area, rows in filtered_dict.items():
-                    grouped_rows[tuple(rows)].append(c_area)
+                        # Get cells from the matching areas
+                        area_cells = [cell for area in matching_areas for cell in area.get_empty_cells()]
 
-                # Now filter to only include entries with exactly 'i' areas with the same rows
-                matching_entries = {key: value for key, value in grouped_rows.items() if len(value) == i}
+                        # Intersect the cell groups
+                        crossed_cells = set(crossed_line_cells) & set(area_cells)
 
-                if matching_entries:
-                    cols = list(next(iter(matching_entries.keys())))
-                    areas = [self.areas[key] for key in next(iter(matching_entries.values()))]
+                        crosses.extend(crossed_cells)
 
-                    # Initialize an empty set to store the final results
-                    final_col_cells = set()
+        # Apply rule for rows and columns
+        rows_areas = {row: row.get_empty_areas() for row in self.rows}
+        columns_areas = {column: column.get_empty_areas() for column in self.columns}
 
-                    # For each column, get the empty cells and join them all in one set
-                    for column in cols:
-                        col_cells = set(column.get_empty_cells())  # Get the empty cells for the column
-                        final_col_cells.update(col_cells)  # Add them to the final set
+        process_line(rows_areas, lambda area: area.get_rows_of_empty_cells())
+        process_line(columns_areas, lambda area: area.get_columns_of_empty_cells())
 
-                    # For each area, get its empty cells and remove them from the final column cells
-                    for c_area in areas:
-                        area_cells = set(c_area.get_empty_cells())  # Get the empty cells for the area
-                        final_col_cells.difference_update(area_cells)  # Remove area cells from the column cells
+        # Apply rule for areas
+        areas_rows = {area: area.get_rows_of_empty_cells() for area in list(self.areas.values())}
+        areas_columns = {area: area.get_columns_of_empty_cells() for area in list(self.areas.values())}
 
-                    crosses.extend(final_col_cells)
-
-        # Step 4: Process Rows
-        process_line(area_rows_dict, min_empty_rows, max_empty_rows)
-        # Step 5: Process Columns
-        process_line(area_columns_dict, min_empty_columns, max_empty_columns)
+        process_line(areas_rows, lambda row: row.get_empty_areas())
+        process_line(areas_columns, lambda col: col.get_empty_areas())
 
         return crown, crosses
 
@@ -557,6 +577,8 @@ class Solver:
         # Step 4: Make a simulated board (save current board to load later)
         save_state_board = self.board.save_state()
         save_crowns = self.crowns
+        save_guess_flag = self.guess_flag
+        self.guess_flag = True
 
         # Step 5: Disable clicking on real board
         save_click_enabled = self.click_enabled
@@ -578,6 +600,7 @@ class Solver:
         self.click_enabled = save_click_enabled
         self.board.load_state(save_state_board)
         self.crowns = save_crowns
+        self.guess_flag = save_guess_flag
 
         return crown_found, target_cell
 
@@ -595,6 +618,8 @@ class Solver:
                 self.cross_cells(crosses)
             if crown or crosses:
                 print(f"Rule {index} ({rule.__name__}) found, restarting rules.")
+                if not self.guess_flag:
+                    time.sleep(self.sleep_time)  # Pause between rules
                 return True  # Progress was made
         return False  # No progress
 
@@ -603,6 +628,9 @@ class Solver:
         Applies a guess when no progress is made.
         """
         crown_found, target_cell = self.guess()
+        if self.stop_flag:
+            return
+
         if crown_found:
             self.crown_cell(target_cell)
             print("Crown found!")
@@ -616,7 +644,9 @@ class Solver:
         """
         self.start_listener()  # Start the listener in a separate thread
 
-        rules = [self.rule_one, self.rule_two, self.rule_three, self.rule_four, self.rule_five, self.rule_six]
+        rules = [self.rule_one, self.rule_two, self.rule_three, self.rule_four, self.rule_five
+                 # , self.rule_six
+                 ]
 
         while not self.stop_flag:
             # Apply rules and check progress
@@ -630,6 +660,9 @@ class Solver:
             # Make a guess if no progress was made
             if not progress:
                 self.apply_guess()
+
+        if self.stop_flag and not self.guess_flag:
+            save_board_state(self.board)
 
     def cross_line(self):
         rows, cols = self.board.get_dimensions()
