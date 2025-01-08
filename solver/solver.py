@@ -1,18 +1,17 @@
 import math
 import pickle
 import time
+from collections import defaultdict
 from typing import Dict, List, Any
 
-import input_utils
+from pynput import keyboard
+
 from board.area import Area
 from board.cell import Cell
 from board.line import Row, Column, Line
-from collections import defaultdict
-
-from logic_utils import find_matching_entries
-from settings import get_setting
-import threading
-from pynput import keyboard
+from settings.settings import get_setting
+from utils.input import click_at, click_and_drag
+from utils.logic import find_matching_entries
 
 
 def get_common_cells(sets_of_cells: list[set[Cell]]) -> list[Cell]:
@@ -47,7 +46,7 @@ def save_board_state(board, filename=None):
         filename (str): The name of the file to save the board to.
     """
     if filename is None:
-        filename = get_setting("board_obj_path")
+        filename = get_setting("paths.board_obj")
     try:
         with open(filename, "wb") as file:
             pickle.dump(board, file)
@@ -74,10 +73,10 @@ class Solver:
         self.crowns = 0
         self.guess_flag = False
 
-        self.click_cross_enabled = get_setting("click_cross_enabled")
-        self.click_crown_enabled = get_setting("click_crown_enabled")
-        self.click_enabled = get_setting("click_enabled")
-        self.sleep_time = get_setting("sleep_time")
+        self.click_cross_enabled = get_setting("app_settings.click_cross_enabled")
+        self.click_crown_enabled = get_setting("app_settings.click_crown_enabled")
+        self.click_enabled = get_setting("app_settings.click_enabled")
+        self.sleep_time = get_setting("app_settings.sleep_time")
 
         self.create_areas()
         self.create_lines()
@@ -152,9 +151,9 @@ class Solver:
         Toggles the cell's state until it is set to 'crown'.
         """
         self.crowns = self.crowns + 1
-        click = get_setting("click_crown_enabled")
+        click = get_setting("app_settings.click_crown_enabled")
         while not cell.is_crown():
-            duration = get_setting("click_crown_duration")
+            duration = get_setting("app_settings.click_crown_duration")
             self.toggle_cell(cell, click, duration)
 
     def set_cell_cross(self, cell, click=None):
@@ -162,9 +161,9 @@ class Solver:
         Toggles the cell's state until it is set to 'cross'.
         """
         if click is None:
-            click = get_setting("click_cross_enabled")
+            click = get_setting("app_settings.click_cross_enabled")
         while not cell.is_cross():
-            duration = get_setting("click_cross_duration")
+            duration = get_setting("app_settings.click_cross_duration")
             self.toggle_cell(cell, click, duration)
 
     def toggle_cell(self, cell, click=True, duration=None):
@@ -177,8 +176,8 @@ class Solver:
         # Click the screen
         if click and self.click_enabled and not self.stop_flag:
             if duration is None:
-                duration = get_setting("click_cross_duration")
-            input_utils.click_at((x, y), duration)
+                duration = get_setting("app_settings.click_cross_duration")
+            click_at((x, y), duration)
 
     def click_and_drag_cells(self, cells: list[Cell]):
         # Change state of cells to crossed without clicking
@@ -187,7 +186,7 @@ class Solver:
 
         start = self.board.get_cell_coordinates(cells[0])
         end = self.board.get_cell_coordinates(cells[-1])
-        input_utils.click_and_drag(start, end)
+        click_and_drag(start, end)
 
     def cross_cells(self, cells: list[Cell]):
         for cell in cells:
@@ -210,8 +209,8 @@ class Solver:
         cells_to_cross = [cell for cell in cells_to_cross if cell.is_empty()]
 
         # If clicking is not enable, we only change states
-        click_cross_enabled = get_setting("click_cross_enabled")
-        click_enabled = get_setting("click_enabled")
+        click_cross_enabled = get_setting("app_settings.click_cross_enabled")
+        click_enabled = get_setting("app_settings.click_enabled")
         if not (click_enabled and click_cross_enabled):
             for cell in cells_to_cross:
                 self.set_cell_cross(cell)
@@ -468,64 +467,6 @@ class Solver:
 
         return crown, crosses
 
-    def rule_six(self):
-        """
-         Implements Rule Six for solving the puzzle. This rule identifies cases where multiple lines (rows or columns)
-         share only a few possible areas, ensuring that the crowns within those areas must occupy those lines.
-         Consequently, any other lines that overlap with those areas are crossed out to eliminate ambiguity.
-
-         Steps:
-         1. For each possible number of matching areas (from `min_value` to `max_value`):
-             a. Find groups of lines with exactly `i` matching areas.
-             b. Verify that the matched areas are exactly `i` in number.
-             c. Determine all lines connected to those areas.
-             d. Exclude the matching lines from the total connected lines.
-             e. Cross out cells in the excluded lines that overlap with the matched areas.
-         2. Repeat the above for both rows and columns.
-
-         Returns:
-             bool: Indicates whether any progress was made (i.e., cells were crossed out).
-         """
-        crown: Cell | None = None
-        crosses: list[Cell] = []
-
-        min_value = 2
-        max_value = len(self.areas)
-
-        def process_line(line_areas, get_empty_area_lines):
-            nonlocal min_value, max_value
-            for i in range(min_value, max_value + 1):
-                # Find i lines with the same areas
-                matching_lines = find_matching_entries(line_areas, i)
-                if matching_lines:
-                    # Get the areas from the match
-                    matching_areas = list({area for line in list(matching_lines.values()) for area in line})
-                    # Guarantee they have i areas
-                    if len(matching_areas) == i:
-                        # Analyze each areas lines to cross lines not in line_areas
-                        total_lines = {line for area in next(iter(matching_lines.values())) for line in
-                                       get_empty_area_lines(area)}
-
-                        # Remove the matching lines from the total lines
-                        crossed_lines = [line for line in total_lines if line not in list(matching_lines.keys())]
-                        crossed_line_cells = [cell for line in crossed_lines for cell in line.get_empty_cells()]
-
-                        # Get cells from the matching areas
-                        area_cells = [cell for area in matching_areas for cell in area.get_empty_cells()]
-
-                        # Intersect the cell groups
-                        crossed_cells = set(crossed_line_cells) & set(area_cells)
-
-                        crosses.extend(crossed_cells)
-
-        rows_areas = {row: row.get_empty_areas() for row in self.rows}
-        columns_areas = {column: column.get_empty_areas() for column in self.columns}
-
-        process_line(rows_areas, lambda area: area.get_rows_of_empty_cells())
-        process_line(columns_areas, lambda area: area.get_columns_of_empty_cells())
-
-        return crown, crosses
-
     def guess(self):
         """
             Attempts to guess the correct position for a crown on the game board when no other rules can be applied.
@@ -658,4 +599,4 @@ class Solver:
         rows, cols = self.board.get_dimensions()
         x1, y1 = self.board.get_position_coordinates(0, 0)
         x2, y2 = self.board.get_position_coordinates(0, cols - 1)
-        input_utils.click_and_drag((x1, y1), (x2, y2))
+        click_and_drag((x1, y1), (x2, y2))

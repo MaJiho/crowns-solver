@@ -5,7 +5,7 @@ import pyautogui
 from board.board import Board
 from board.cell import Cell
 from board.gridline import Gridline
-from settings import get_setting
+from settings.settings import get_setting
 
 
 def capture_screenshot_of_grid(grid_area, save_path):
@@ -41,8 +41,8 @@ def load_and_preprocess_image(image_path, save_intermediate=False):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     # Paths to save intermediate images
-    binary_path = get_setting("screenshot_binary_img_path")
-    grayscale_path = get_setting("screenshot_grayscale_img_path")
+    binary_path = get_setting("paths.screenshot_binary_img")
+    grayscale_path = get_setting("paths.screenshot_grayscale_img")
 
     if save_intermediate:
         cv2.imwrite(grayscale_path, gray)
@@ -75,7 +75,7 @@ def find_game_board(binary_image, save_intermediate=False):
     Raises:
         ValueError: If no suitable game board is found in the binary image.
     """
-    binary_board_path = get_setting("board_binary_img_path")
+    binary_board_path = get_setting("paths.board_binary_img")
 
     contours, hierarchy = cv2.findContours(binary_image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     for contour in contours:

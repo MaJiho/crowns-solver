@@ -1,9 +1,9 @@
 import pickle
 
-from settings import get_setting
+from settings.settings import get_setting, resolve_path
 
 
-def load_board_state(filename=None):
+def load_board_state():
     """
     Loads a board state from a file.
 
@@ -13,15 +13,15 @@ def load_board_state(filename=None):
     Returns:
         The board object if successfully loaded, or None if an error occurs.
     """
-    if filename is None:
-        filename = "../" + get_setting("board_obj_path")
+    filename = get_setting("paths.board_obj")
+    file_path = resolve_path(filename)
     try:
-        with open(filename, "rb") as file:
+        with open(file_path, "rb") as file:
             board_state = pickle.load(file)
-            print(f"Board state loaded from {filename}")
+            print(f"Board state loaded from {file_path}")
             return board_state
     except FileNotFoundError:
-        print(f"Error: File '{filename}' not found.")
+        print(f"Error: File '{file_path}' not found.")
     except Exception as e:
         print(f"Error loading board state: {e}")
     return None

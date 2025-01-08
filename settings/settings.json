@@ -1,0 +1,19 @@
+{
+  "paths": {
+    "assets": "assets/",
+    "screenshot_img": "grid_screenshot.png",
+    "screenshot_grayscale_img": "grayscale_image.png",
+    "screenshot_binary_img": "binary_image.png",
+    "board_binary_img": "binary_board_image.png",
+    "board_obj": "board_obj.pkl"
+  },
+  "app_settings": {
+    "sleep_time": 0.3,
+    "click_cross_duration": 0.01,
+    "click_crown_duration": 0.3,
+    "click_cross_enabled": true,
+    "click_crown_enabled": true,
+    "click_enabled": true,
+    "quick_clicker": true
+  }
+}

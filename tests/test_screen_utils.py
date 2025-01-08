@@ -2,7 +2,7 @@ import os
 import unittest
 from unittest.mock import patch, Mock
 
-from screen_utils import capture_screenshot_of_grid
+from utils.screen import capture_screenshot_of_grid
 
 
 class TestCaptureScreenshotOfGrid(unittest.TestCase):

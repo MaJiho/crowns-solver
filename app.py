@@ -1,7 +1,7 @@
-from input_utils import click_and_drag_to_capture
-from screen_utils import capture_screenshot_of_grid, detect_game_board
-from settings import load_settings, get_setting
-from solver import Solver
+from utils.input import click_and_drag_to_capture
+from utils.screen import capture_screenshot_of_grid, detect_game_board
+from settings.settings import load_settings, get_setting
+from solver.solver import Solver
 
 
 def main():
@@ -19,7 +19,7 @@ def main():
     print("\nStep 2: Capture the grid area screenshot.")
 
     # Step 2: Capture the screenshot of the selected area
-    screenshot_path = get_setting("screenshot_img_path")
+    screenshot_path = get_setting("paths.screenshot_img")
     capture_screenshot_of_grid(grid_area, save_path=screenshot_path)
 
     # Step 3: Pass grid_area (x, y, w, h) to the function
