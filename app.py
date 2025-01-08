@@ -1,7 +1,14 @@
+from pathlib import Path
+
+from utils import file
+from utils.file import resolve_path
 from utils.input import click_and_drag_to_capture
 from utils.screen import capture_screenshot_of_grid, detect_game_board
 from settings.settings import load_settings, get_setting
 from solver.solver import Solver
+
+# Base directory for resolving paths
+file.STARTING_PATH = Path(__file__).resolve()
 
 
 def process_game_board():
@@ -17,7 +24,7 @@ def process_game_board():
 
     # Step 2: Capture the screenshot of the selected area
     print("\nStep 2: Capture the grid area screenshot.")
-    screenshot_path = get_setting("paths.screenshot_img")
+    screenshot_path = resolve_path(get_setting("paths.screenshot_img"))
     capture_screenshot_of_grid(grid_area, save_path=screenshot_path)
 
     # Step 3: Pass grid_area (x, y, w, h) to the function

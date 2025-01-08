@@ -1,19 +1,48 @@
 import json
+import os
 import pickle
 from pathlib import Path
-from PIL import Image
-import numpy as np
 import cv2
+import numpy as np
+from PIL import Image
 
 # Base directory for resolving paths
 BASE_DIR = Path(__file__).resolve().parent.parent
+# Executable directory
+STARTING_PATH: Path | None = None
 
 
 def make_relative(absolute_path):
     """
-    Convert an absolute path to a path relative to the base directory.
+    Convert an absolute path to a path relative to the executable directory (STARTING_PATH).
+
+    Args:
+        absolute_path (str or Path): The absolute path to convert.
+
+    Returns:
+        Path: The relative path from STARTING_PATH to the given absolute_path.
+
+    Raises:
+        ValueError: If STARTING_PATH is not set or the paths cannot be made relative.
     """
-    return absolute_path.relative_to(BASE_DIR)
+    if STARTING_PATH is None:
+        raise ValueError("STARTING_PATH is not set. Please set it before calling this function.")
+
+    absolute_path = Path(absolute_path).resolve()
+    base_path = STARTING_PATH.resolve()
+
+    # If STARTING_PATH is a file, use its parent directory
+    if base_path.is_file():
+        base_path = base_path.parent
+
+    try:
+        # Attempt to calculate the relative path
+        relative_path = absolute_path.relative_to(base_path)
+    except ValueError:
+        # If paths don't share a common base, calculate manually using os.relpath
+        relative_path = Path(os.path.relpath(absolute_path, base_path))
+
+    return relative_path
 
 
 def resolve_path(relative_path):
@@ -102,3 +131,38 @@ def save_png(save_path, image):
         image.save(save_path)
     else:
         raise TypeError("Unsupported image format. Please provide a numpy ndarray or PIL Image.")
+
+
+def read_image(image_path: Path):
+    """
+    Reads an image from the specified path. If the image is not found, it attempts to resolve the
+    path by making it relative before trying to load the image again.
+
+    Args:
+        image_path (Path): The path to the image file (can be absolute or relative).
+
+    Returns:
+        numpy.ndarray: The image as a NumPy array, loaded using OpenCV.
+
+    Raises:
+        FileNotFoundError: If the image cannot be found at the specified path, even after attempting
+                            to resolve the path.
+    """
+    # Suppress OpenCV warnings
+    cv2.setLogLevel(1)
+
+    # Attempt to read the image using OpenCV (cv2.imread)
+    img = cv2.imread(str(image_path))
+
+    # If the image is not found, try to resolve the path by making it relative
+    if img is None:
+        # Make the path relative and attempt to read the image again
+        image_path = make_relative(image_path)
+        img = cv2.imread(str(image_path))
+
+    # Raise an exception if the image still cannot be found
+    if img is None:
+        raise FileNotFoundError(f"Image not found at path: {image_path}")
+
+    # Return the loaded image as a NumPy array
+    return img

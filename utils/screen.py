@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import cv2
 import numpy as np
 import pyautogui
@@ -6,7 +8,7 @@ from board.board import Board
 from board.cell import Cell
 from board.gridline import Gridline
 from settings.settings import get_setting
-from utils.file import resolve_path, save_png
+from utils.file import resolve_path, save_png, read_image
 
 
 def capture_screenshot_of_grid(grid_area, save_path):
@@ -25,7 +27,7 @@ def capture_screenshot_of_grid(grid_area, save_path):
     save_png(save_path, screenshot)
 
 
-def load_and_preprocess_image(image_path, save_intermediate=False):
+def load_and_preprocess_image(image_path: Path, save_intermediate=False):
     """
     Loads an image from the specified path, converts it to grayscale,
     and thresholds it to create a binary image.
@@ -37,7 +39,7 @@ def load_and_preprocess_image(image_path, save_intermediate=False):
     Returns:
         tuple: Original image (numpy array) and binary image (numpy array).
     """
-    img = cv2.imread(image_path)
+    img = read_image(image_path)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     # Use resolve_path to get proper paths for saving intermediate images
@@ -55,7 +57,6 @@ def load_and_preprocess_image(image_path, save_intermediate=False):
         save_png(binary_path, binary)
 
     return img, binary
-
 
 
 def find_game_board(binary_image, save_intermediate=False):
@@ -294,7 +295,7 @@ def color_cells(original_image, cells, x, y):
     return cells
 
 
-def detect_game_board(image_path, grid_area, save_intermediate=False):
+def detect_game_board(image_path: Path, grid_area, save_intermediate=False):
     """
     Detects the game board grid from a screenshot image and optionally saves intermediate images.
 
