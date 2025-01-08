@@ -1,6 +1,7 @@
 import pickle
 
-from settings.settings import get_setting, resolve_path
+from settings.settings import get_setting
+from utils.file import resolve_path
 
 
 def load_board_state():

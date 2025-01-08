@@ -541,13 +541,13 @@ class Solver:
             crown, crosses = rule()
             if crown or crosses:
                 print(f"Rule {index} ({rule.__name__}) found, restarting rules.")
+                if not self.guess_flag:
+                    time.sleep(self.sleep_time)  # Pause between rules
             if crown:
                 self.crown_cell(crown)
             if crosses:
                 self.cross_cells(crosses)
             if crown or crosses:
-                if not self.guess_flag:
-                    time.sleep(self.sleep_time)  # Pause between rules
                 return True  # Progress was made
         return False  # No progress
 
@@ -574,9 +574,7 @@ class Solver:
         """
         self.start_listener()  # Start the listener in a separate thread
 
-        rules = [self.rule_one, self.rule_two, self.rule_three, self.rule_four, self.rule_five
-                 # , self.rule_six
-                 ]
+        rules = [self.rule_one, self.rule_two, self.rule_three, self.rule_four, self.rule_five]
 
         while not self.stop_flag:
             # Apply rules and check progress

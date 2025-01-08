@@ -1,39 +1,25 @@
-import json
-from pathlib import Path
+from utils.file import resolve_path, load_json
 
 # Global settings dictionary
 settings = {}
-
-# Base directory for resolving paths
-BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 def check_for_quick_clicker():
     """
     Modify settings in the 'app_settings' section based on the value of 'quick_clicker'.
     """
-
-    def set_setting(section, key, value):
-        settings[section][key] = value
-
     if get_setting("app_settings.quick_clicker"):
         set_setting("app_settings", "click_cross_enabled", False)
         set_setting("app_settings", "click_crown_duration", 0.01)
         set_setting("app_settings", "sleep_time", 0.0)
 
 
-def resolve_path(relative_path):
+def set_setting(section, key, value):
     """
-    Resolve a path relative to the base directory.
+    Set a specific setting value in a given section.
     """
-    return BASE_DIR / relative_path
-
-
-def make_relative(absolute_path):
-    """
-    Convert an absolute path to a path relative to the base directory.
-    """
-    return absolute_path.relative_to(BASE_DIR)
+    if section in settings:
+        settings[section][key] = value
 
 
 def load_settings(file_path="settings/settings.json"):
@@ -45,33 +31,29 @@ def load_settings(file_path="settings/settings.json"):
         # Resolve the settings file path
         settings_file_path = resolve_path(file_path)
 
-        with open(settings_file_path, "r") as file:
-            raw_settings = json.load(file)
+        # Load settings using the file utility
+        raw_settings = load_json(settings_file_path)
+        if raw_settings is None:
+            print(f"Failed to load settings from '{file_path}'. Using default settings.")
+            settings = {}
+            return
 
-        # Get the base assets path from the settings
-        assets_base_path = raw_settings["paths"]["assets"]
+        # Resolve all file paths in the 'paths' section
+        if "paths" in raw_settings:
+            assets_base_path = raw_settings["paths"].get("assets", "")
+            resolved_paths = {
+                key: assets_base_path + value if key != "assets" else value
+                for key, value in raw_settings["paths"].items()
+            }
+            raw_settings["paths"] = resolved_paths
 
-        # Create a new dictionary for resolved paths
-        resolved_paths = {}
-
-        # Loop through each key-value pair in the 'paths' section
-        for key, value in raw_settings["paths"].items():
-            if key == "assets":
-                # Skip the 'assets' key as it's the base path
-                continue
-            # Resolve the full path for the current file
-            resolved_paths[key] = assets_base_path + value
-
-        # Replace the 'paths' section with the resolved paths
-        raw_settings["paths"] = resolved_paths
-
+        # Update global settings
         settings.update(raw_settings)
+
+        # Check for quick clicker settings
         check_for_quick_clicker()
-    except FileNotFoundError:
-        print(f"Settings file '{file_path}' not found. Using default settings.")
-        settings = {}
-    except json.JSONDecodeError:
-        print(f"Failed to parse '{file_path}'. Ensure it is valid JSON.")
+    except Exception as e:
+        print(f"Error loading settings: {e}")
         settings = {}
 
 

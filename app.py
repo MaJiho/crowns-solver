@@ -4,21 +4,19 @@ from settings.settings import load_settings, get_setting
 from solver.solver import Solver
 
 
-def main():
-    # Load settings at the start
-    load_settings()
-
-    print("Step 1: Define the grid area using click-and-drag.")
-
+def process_game_board():
+    """
+    Main logic for processing the game board, triggered by the UI or CLI.
+    """
     # Step 1: Click and drag to define the grid area
+    print("Step 1: Define the grid area using click-and-drag.")
     grid_area = click_and_drag_to_capture()
     if not grid_area:
         print("Failed to capture the grid area. Exiting.")
-        return
-
-    print("\nStep 2: Capture the grid area screenshot.")
+        return False
 
     # Step 2: Capture the screenshot of the selected area
+    print("\nStep 2: Capture the grid area screenshot.")
     screenshot_path = get_setting("paths.screenshot_img")
     capture_screenshot_of_grid(grid_area, save_path=screenshot_path)
 
@@ -28,6 +26,23 @@ def main():
     # Step 4: Solve the game board
     solver = Solver(board_obj)
     solver.solve()
+
+    return True
+
+
+def main():
+    """
+    CLI entry point for the application.
+    """
+    # Load settings at the start
+    load_settings()
+
+    # Process the game board through the main logic
+    success = process_game_board()
+    if success:
+        print("\nGame board solved successfully!")
+    else:
+        print("\nGame board solving failed.")
 
 
 if __name__ == "__main__":

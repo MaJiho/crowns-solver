@@ -6,6 +6,7 @@ from board.board import Board
 from board.cell import Cell
 from board.gridline import Gridline
 from settings.settings import get_setting
+from utils.file import resolve_path, save_png
 
 
 def capture_screenshot_of_grid(grid_area, save_path):
@@ -21,8 +22,7 @@ def capture_screenshot_of_grid(grid_area, save_path):
     """
     x, y, width, height = grid_area
     screenshot = pyautogui.screenshot(region=(x, y, width, height))
-    screenshot.save(save_path)
-    print(f"Grid screenshot saved at: {save_path}")
+    save_png(save_path, screenshot)
 
 
 def load_and_preprocess_image(image_path, save_intermediate=False):
@@ -40,19 +40,22 @@ def load_and_preprocess_image(image_path, save_intermediate=False):
     img = cv2.imread(image_path)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    # Paths to save intermediate images
-    binary_path = get_setting("paths.screenshot_binary_img")
-    grayscale_path = get_setting("paths.screenshot_grayscale_img")
+    # Use resolve_path to get proper paths for saving intermediate images
+    binary_path = resolve_path(get_setting("paths.screenshot_binary_img"))
+    grayscale_path = resolve_path(get_setting("paths.screenshot_grayscale_img"))
 
     if save_intermediate:
-        cv2.imwrite(grayscale_path, gray)
+        # Save grayscale image using save_png from file.py
+        save_png(grayscale_path, gray)
 
     _, binary = cv2.threshold(gray, 50, 255, cv2.THRESH_BINARY_INV)
 
     if save_intermediate:
-        cv2.imwrite(binary_path, binary)
+        # Save binary image using save_png from file.py
+        save_png(binary_path, binary)
 
     return img, binary
+
 
 
 def find_game_board(binary_image, save_intermediate=False):
