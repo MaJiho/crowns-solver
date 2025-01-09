@@ -1,9 +1,7 @@
-import threading
+from typing import Optional, Dict, Tuple
 
-import keyboard
 import pyautogui
 import pynput.mouse as mouse
-import time
 
 
 def click_and_drag_to_capture():
@@ -11,7 +9,7 @@ def click_and_drag_to_capture():
     Allow the user to click and drag to select an area on the screen,
     while suppressing mouse events.
     """
-    positions = {"start": None, "end": None}
+    positions: Dict[str, Optional[Tuple[int, int]]] = {"start": None, "end": None}
     dragging = {"is_dragging": False}
 
     # Define the event filter to capture and suppress mouse events
@@ -21,7 +19,7 @@ def click_and_drag_to_capture():
             positions["start"] = (data.pt.x, data.pt.y)
             dragging["is_dragging"] = True
             print(f"Start position: {positions['start']}")
-            listener.suppress_event()  # Suppress the event
+            listener.suppress_event()  # type: ignore
             return False  # Stop propagation
         elif msg == 0x0202:  # Left mouse button up (WM_LBUTTONUP)
             # End of drag
@@ -30,7 +28,7 @@ def click_and_drag_to_capture():
                 dragging["is_dragging"] = False
                 print(f"End position: {positions['end']}")
                 listener.stop()  # Stop the listener after the drag is complete
-                listener.suppress_event()  # Suppress the event
+                listener.suppress_event()  # type: ignore
                 return False  # Stop propagation
         return True  # Allow other events
 
@@ -51,7 +49,7 @@ def click_and_drag_to_capture():
         height = abs(y2 - y1)
 
         print(f"Selected area: x={x}, y={y}, width={width}, height={height}")
-        return (x, y, width, height)
+        return x, y, width, height
 
     print("Selection failed. Please try again.")
     return None
