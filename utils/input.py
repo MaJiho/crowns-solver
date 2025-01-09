@@ -2,6 +2,7 @@ from typing import Optional, Dict, Tuple
 
 import pyautogui
 import pynput.mouse as mouse
+from pynput import keyboard
 
 
 def click_and_drag_to_capture():
@@ -11,15 +12,16 @@ def click_and_drag_to_capture():
     """
     positions: Dict[str, Optional[Tuple[int, int]]] = {"start": None, "end": None}
     dragging = {"is_dragging": False}
+    canceled = {"is_canceled": False}
 
     # Define the event filter to capture and suppress mouse events
-    def win32_event_filter(msg, data):
+    def mouse_event_filter(msg, data):
         if msg == 0x0201:  # Left mouse button down (WM_LBUTTONDOWN)
             # Start of drag
             positions["start"] = (data.pt.x, data.pt.y)
             dragging["is_dragging"] = True
             print(f"Start position: {positions['start']}")
-            listener.suppress_event()  # type: ignore
+            mouse_listener.suppress_event()  # type: ignore
             return False  # Stop propagation
         elif msg == 0x0202:  # Left mouse button up (WM_LBUTTONUP)
             # End of drag
@@ -27,15 +29,31 @@ def click_and_drag_to_capture():
                 positions["end"] = (data.pt.x, data.pt.y)
                 dragging["is_dragging"] = False
                 print(f"End position: {positions['end']}")
-                listener.stop()  # Stop the listener after the drag is complete
-                listener.suppress_event()  # type: ignore
+                mouse_listener.stop()  # Stop the listener after the drag is complete
+                keyboard_listener.stop()
+                mouse_listener.suppress_event()  # type: ignore
                 return False  # Stop propagation
         return True  # Allow other events
 
+    # Define the keyboard event listener for Esc key
+    def on_press(key):
+        if key == keyboard.Key.esc:
+            canceled["is_canceled"] = True
+            mouse_listener.stop()
+            keyboard_listener.stop()
+            return  # Stop the keyboard listener
+
     # Start the mouse listener for capturing clicks and drag
-    with mouse.Listener(win32_event_filter=win32_event_filter) as listener:
-        print("Click and drag to select an area.")
-        listener.join()
+    with mouse.Listener(win32_event_filter=mouse_event_filter) as mouse_listener, \
+            keyboard.Listener(on_press=on_press) as keyboard_listener:
+        print("Click and drag to select an area. Press 'Esc' to cancel.")
+        mouse_listener.join()
+        keyboard_listener.join()
+
+    # If canceled, return None
+    if canceled["is_canceled"]:
+        print("Selection was canceled.")
+        return None
 
     # Process coordinates once drag is completed
     if positions["start"] and positions["end"]:

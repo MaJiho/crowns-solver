@@ -19,7 +19,6 @@ def process_game_board():
     print("Step 1: Define the grid area using click-and-drag.")
     grid_area = click_and_drag_to_capture()
     if not grid_area:
-        print("Failed to capture the grid area. Exiting.")
         return False
 
     # Step 2: Capture the screenshot of the selected area
