@@ -72,6 +72,9 @@ def save_json(file_path, data):
     Save data to a JSON file.
     """
     try:
+        # Ensure the directory exists
+        ensure_directory_exists(Path(file_path).parent)
+        # Save the JSON file
         with open(file_path, "w") as file:
             json.dump(data, file, indent=4)
     except Exception as e:
@@ -98,6 +101,9 @@ def save_pickle(file_path, obj):
     Save an object to a pickle file.
     """
     try:
+        # Ensure the directory exists
+        ensure_directory_exists(Path(file_path).parent)
+        # Save the pickle file
         with open(file_path, "wb") as file:
             pickle.dump(obj, file)
     except Exception as e:
@@ -119,6 +125,9 @@ def save_png(save_path, image):
         save_path (str): Path where the PNG file should be saved.
         image: Image data (either numpy.ndarray or PIL.Image).
     """
+    # Ensure the directory exists
+    ensure_directory_exists(Path(save_path).parent)
+
     # If the image is a numpy ndarray (OpenCV format)
     if isinstance(image, np.ndarray):
         # Convert it to RGB (if it's not already in RGB format)
